@@ -18,6 +18,8 @@ const dbTimeout = time.Second * 3
 
 var db *sql.DB
 
+// New is the function used to create an instance of the data package. It returns the type
+// Model, which embeds all of the types we want to be available to our application.
 func New(dbPool *sql.DB) Models {
 	db = dbPool
 
@@ -27,11 +29,16 @@ func New(dbPool *sql.DB) Models {
 	}
 }
 
+// Models is the type for this package. Note that any model that is included as a member
+// in this type is available to us throughout the application, anywhere that the
+// app variable is used, provided that the model is also added in the New function.
 type Models struct {
 	User  User
 	Token Token
 }
 
+// User is the stucture which holds one user from the database. Note
+// that it embeds a token type.
 type User struct {
 	ID        int       `json:"id"`
 	Email     string    `json:"email"`
@@ -43,6 +50,7 @@ type User struct {
 	Token     Token     `json:"token"`
 }
 
+// GetAll returns a slice of all users, sorted by last name
 func (u *User) GetAll() ([]*User, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
@@ -78,6 +86,7 @@ func (u *User) GetAll() ([]*User, error) {
 	return users, nil
 }
 
+// GetByEmail returns one user by email
 func (u *User) GetByEmail(email string) (*User, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
@@ -86,6 +95,7 @@ func (u *User) GetByEmail(email string) (*User, error) {
 
 	var user User
 	row := db.QueryRowContext(ctx, query, email)
+
 	err := row.Scan(
 		&user.ID,
 		&user.Email,
@@ -103,6 +113,7 @@ func (u *User) GetByEmail(email string) (*User, error) {
 	return &user, nil
 }
 
+// GetOne returns one user by id
 func (u *User) GetOne(id int) (*User, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
@@ -111,6 +122,7 @@ func (u *User) GetOne(id int) (*User, error) {
 
 	var user User
 	row := db.QueryRowContext(ctx, query, id)
+
 	err := row.Scan(
 		&user.ID,
 		&user.Email,
@@ -128,6 +140,8 @@ func (u *User) GetOne(id int) (*User, error) {
 	return &user, nil
 }
 
+// Update updates one user in the database, using the information
+// stored in the receiver u
 func (u *User) Update() error {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
@@ -155,6 +169,7 @@ func (u *User) Update() error {
 	return nil
 }
 
+// Delete deletes one user from the datbase, by ID
 func (u *User) Delete() error {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
@@ -162,7 +177,6 @@ func (u *User) Delete() error {
 	stmt := `delete from users where id = $1`
 
 	_, err := db.ExecContext(ctx, stmt, u.ID)
-
 	if err != nil {
 		return err
 	}
@@ -170,6 +184,7 @@ func (u *User) Delete() error {
 	return nil
 }
 
+// Insert inserts a new user into the datbase, and returns the ID of the newly inserted row
 func (u *User) Insert(user User) (int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
@@ -181,8 +196,7 @@ func (u *User) Insert(user User) (int, error) {
 
 	var newID int
 	stmt := `insert into users (email, first_name, last_name, password, created_at, updated_at)
-		values ($1, $2, $3, $4, $5, $6) returning id
-	`
+		values ($1, $2, $3, $4, $5, $6) returning id`
 
 	err = db.QueryRowContext(ctx, stmt,
 		user.Email,
@@ -200,6 +214,7 @@ func (u *User) Insert(user User) (int, error) {
 	return newID, nil
 }
 
+// ResetPassword is the method we will use to change a user's password.
 func (u *User) ResetPassword(password string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
@@ -218,6 +233,9 @@ func (u *User) ResetPassword(password string) error {
 	return nil
 }
 
+// PasswordMatches uses Go's bcrypt package to compare a user supplied password
+// with the hash we have stored for a given user in the database. If the password
+// and hash match, we return true; otherwise, we return false.
 func (u *User) PasswordMatches(plainText string) (bool, error) {
 	err := bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(plainText))
 
@@ -234,6 +252,8 @@ func (u *User) PasswordMatches(plainText string) (bool, error) {
 	return true, nil
 }
 
+// Token is the data structure for any token in the database. Note that
+// we do not send the TokenHash (a slice of bytes) in any exported JSON.
 type Token struct {
 	ID        int       `json:"id"`
 	UserID    int       `json:"user_id"`
@@ -245,13 +265,17 @@ type Token struct {
 	Expiry    time.Time `json:"expiry"`
 }
 
+// GetByToken takes a plain text token string, and looks up the full token from
+// the database. It returns a pointer to the Token model.
 func (t *Token) GetByToken(plainText string) (*Token, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
 
-	query := `select id, user_id, email, token, token_hash, created_at, updated_at, expiry from tokens where token = $1`
+	query := `select id, user_id, email, token, token_hash, created_at, updated_at, expiry
+			from tokens where token = $1`
 
 	var token Token
+
 	row := db.QueryRowContext(ctx, query, plainText)
 	err := row.Scan(
 		&token.ID,
@@ -271,6 +295,8 @@ func (t *Token) GetByToken(plainText string) (*Token, error) {
 	return &token, nil
 }
 
+// GetUserForToken takes a token parameter, and uses the UserID field from that parameter
+// to look a user up by id. It returns a pointer to the user model.
 func (t *Token) GetUserForToken(token Token) (*User, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
@@ -279,6 +305,7 @@ func (t *Token) GetUserForToken(token Token) (*User, error) {
 
 	var user User
 	row := db.QueryRowContext(ctx, query, token.UserID)
+
 	err := row.Scan(
 		&user.ID,
 		&user.Email,
@@ -296,6 +323,7 @@ func (t *Token) GetUserForToken(token Token) (*User, error) {
 	return &user, nil
 }
 
+// GenerateToken generates a secure token of exactly 26 characters in length and returns it
 func (t *Token) GenerateToken(userID int, ttl time.Duration) (*Token, error) {
 	token := &Token{
 		UserID: userID,
@@ -315,33 +343,42 @@ func (t *Token) GenerateToken(userID int, ttl time.Duration) (*Token, error) {
 	return token, nil
 }
 
+// AuthenticateToken takes the full http request, extracts the authorization header,
+// takes the plain text token from that header and looks up the associated token entry
+// in the database, and then finds the user associated with that token. If the token
+// is valid and a user is found, the user is returned; otherwise, it returns an error.
 func (t *Token) AuthenticateToken(r *http.Request) (*User, error) {
+	// get the authorization header
 	authorizationHeader := r.Header.Get("Authorization")
 	if authorizationHeader == "" {
 		return nil, errors.New("no authorization header received")
 	}
 
-	headerParts := strings.Split(authorizationHeader, "")
-
+	// get the plain text token from the header
+	headerParts := strings.Split(authorizationHeader, " ")
 	if len(headerParts) != 2 || headerParts[0] != "Bearer" {
 		return nil, errors.New("no valid authorization header received")
 	}
 
 	token := headerParts[1]
 
+	// make sure the token is of the correct length
 	if len(token) != 26 {
 		return nil, errors.New("token wrong size")
 	}
 
+	// get the token from the database, using the plain text token to find it
 	tkn, err := t.GetByToken(token)
 	if err != nil {
 		return nil, errors.New("no matching token found")
 	}
 
+	// make sure the token has not expired
 	if tkn.Expiry.Before(time.Now()) {
 		return nil, errors.New("expired token")
 	}
 
+	// get the user associated with the token
 	user, err := t.GetUserForToken(*tkn)
 	if err != nil {
 		return nil, errors.New("no matching user found")
@@ -350,6 +387,7 @@ func (t *Token) AuthenticateToken(r *http.Request) (*User, error) {
 	return user, nil
 }
 
+// Insert inserts a token into the database
 func (t *Token) Insert(token Token, u User) error {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
@@ -361,9 +399,13 @@ func (t *Token) Insert(token Token, u User) error {
 		return err
 	}
 
+	// we assign the email value, just to be safe, in case it was
+	// not done in the handler that calls this function
 	token.Email = u.Email
 
-	stmt = `insert into tokens (user_id, email, token, token_hash, created_at, updated_at, expiry) values ($1, $2, $3, $4, $5, $6, $7)`
+	// insert the new token
+	stmt = `insert into tokens (user_id, email, token, token_hash, created_at, updated_at, expiry)
+		values ($1, $2, $3, $4, $5, $6, $7)`
 
 	_, err = db.ExecContext(ctx, stmt,
 		token.UserID,
@@ -374,7 +416,6 @@ func (t *Token) Insert(token Token, u User) error {
 		time.Now(),
 		token.Expiry,
 	)
-
 	if err != nil {
 		return err
 	}
@@ -382,6 +423,7 @@ func (t *Token) Insert(token Token, u User) error {
 	return nil
 }
 
+// DeleteByToken deletes a token, by plain text token
 func (t *Token) DeleteByToken(plainText string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
@@ -396,6 +438,9 @@ func (t *Token) DeleteByToken(plainText string) error {
 	return nil
 }
 
+// ValidToken makes certain that a given token is valid; in order to be valid,
+// the token must exist in the database, the associated user must exist in the database,
+// and the token must not have expired.
 func (t *Token) ValidToken(plainText string) (bool, error) {
 	token, err := t.GetByToken(plainText)
 	if err != nil {

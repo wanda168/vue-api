@@ -36,7 +36,6 @@ func ConnectPostgres(dsn string) (*DB, error) {
 	}
 
 	dbConn.SQL = d
-
 	return dbConn, nil
 }
 
@@ -47,5 +46,6 @@ func testDB(d *sql.DB) error {
 		return err
 	}
 	fmt.Println("*** Pinged database successfully! ***")
+	
 	return nil
 }
