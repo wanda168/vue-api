@@ -39,6 +39,7 @@ func (app *application) routes() http.Handler {
 	mux.Route("/admin", func(mux chi.Router) {
 		mux.Use(app.AuthTokenMiddleware)
 
+		// admin user routes
 		mux.Post("/users", app.AllUsers)
 		mux.Post("/users/save", app.EditUser)
 		mux.Post("/users/get/{id}", app.GetUser)
@@ -47,6 +48,10 @@ func (app *application) routes() http.Handler {
 
 		// admin book routes
 		mux.Post("/authors/all", app.AuthorsAll)
+		mux.Post("/books/save", app.EditBook)
+		mux.Post("/books/delete", app.DeleteBook)
+		mux.Post("/books/{id}", app.BookByID)
+
 	})
 
 	// static files

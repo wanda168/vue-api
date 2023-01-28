@@ -62,7 +62,7 @@ func (u *User) GetAll() ([]*User, error) {
 
 	query := `select id, email, first_name, last_name, password, user_active, created_at, updated_at,
 	case
-		when (select count(id) from tokens t where user_id = users.id and t.expiry > now()) > 0 then 1
+		when (select count(id) from tokens t where user_id = users.id and t.expiry > NOW()) > 0 then 1
 		else 0
 	end as has_token
 	from users order by last_name`
@@ -232,8 +232,8 @@ func (u *User) Insert(user User) (int, error) {
 		user.Email,
 		user.FirstName,
 		user.LastName,
-		user.Active,
 		hashedPassword,
+		user.Active,
 		time.Now(),
 		time.Now(),
 	).Scan(&newID)
@@ -478,11 +478,12 @@ func (t *Token) DeleteTokensForUser(id int) error {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
 
-	stmt := `delete from tokens where user_id = $1`
+	stmt := "delete from tokens where user_id = $1"
 	_, err := db.ExecContext(ctx, stmt, id)
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
